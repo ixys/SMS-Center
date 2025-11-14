@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\SimCard;
+use App\Models\SmsConversation;
 use App\Models\SmsMessage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,12 @@ class SmppWorkerCommand extends Command
         $this->connect();
 
         while (true) {
+            // 1) Traiter les SMS à envoyer
             $this->processOutgoingQueue();
+
+            // 2) Lire les SMS entrants (deliver_sm)
+            $this->readIncomingMessages();
+
             usleep(100_000); // 100 ms
         }
 
@@ -64,6 +70,51 @@ class SmppWorkerCommand extends Command
 
         foreach ($rows as $row) {
             $this->sendSingleSms($row);
+        }
+    }
+
+    protected function readIncomingMessages(): void
+    {
+        try {
+            if (! method_exists($this->smppClient, 'readSMS')) {
+                return;
+            }
+
+            // On lit au plus un SMS par tick
+            $sms = $this->smppClient->readSMS();
+
+            if (! $sms) {
+                return;
+            }
+
+            // Logs utiles mais pas trop verbeux
+            $this->info('📥 Inbound class: ' . get_class($sms));
+            $this->info("📥 Inbound print_r (résumé):\n" . print_r([
+                    'message' => $sms->message ?? null,
+                ], true));
+
+            // Extraction des infos
+            $from = $this->extractAddressValue($sms->source ?? null);
+            $to   = $this->extractAddressValue($sms->destination ?? null);
+            $body = $sms->message ?? null;
+
+            $this->info("📥 Inbound parsed from={$from} to={$to} body=\"{$body}\"");
+
+            if (! $from || $body === null) {
+                $this->error("SMS inbound invalide (from/body manquants)");
+                return;
+            }
+
+            $this->storeIncomingMessage($from, $to, $body, $sms);
+
+        } catch (\Throwable $e) {
+            // Cas normal : aucun message dispo sur socket non bloquante
+            if (str_contains($e->getMessage(), 'Resource temporarily unavailable')) {
+                return;
+            }
+
+            $this->error("Erreur lecture SMS entrants (SMPP deliver_sm) : " . $e->getMessage());
+            \Log::error("Erreur inbound SMPP", ['exception' => $e]);
         }
     }
 
@@ -144,5 +195,85 @@ class SmppWorkerCommand extends Command
 
             // On pourrait tenter un reconnect ici si besoin
         }
+    }
+
+    /**
+     * Enregistre un SMS entrant dans la base (conversation + message).
+     */
+    protected function storeIncomingMessage(string $from, ?string $to, string $body, object $rawSms): void
+    {
+        // On essaie de retrouver la SIM à partir du numéro destinataire
+        $sim = null;
+        if ($to) {
+            $sim = SimCard::where('phone_number', $to)->first();
+        }
+
+        $receivedAt = now();
+
+        // Conversation = couple (numéro distant + SIM)
+        $conversation = SmsConversation::firstOrCreate(
+            [
+                'phone_number' => $from,
+                'sim_card_id'  => optional($sim)->id,
+            ],
+            [
+                'last_message_preview' => $body,
+                'last_direction'       => 'inbound',
+                'last_message_at'      => $receivedAt,
+            ]
+        );
+
+        $message = SmsMessage::create([
+            'sms_conversation_id' => $conversation->id,
+            'sim_card_id'         => optional($sim)->id,
+            'contact_id'          => null,
+            'phone_number'        => $from,
+            'direction'           => 'inbound',
+            'status'              => 'received',
+            'body'                => $body,
+            // Si ta colonne existe :
+            'received_at'         => $receivedAt,
+        ]);
+
+        $conversation->update([
+            'last_message_preview' => $body,
+            'last_direction'       => 'inbound',
+            'last_message_at'      => $message->created_at,
+            'unread_inbound_count' => ($conversation->unread_inbound_count ?? 0) + 1,
+        ]);
+
+        $this->info("✅ Inbound SMS stocké from={$from}, conversation #{$conversation->id}");
+    }
+
+    /**
+     * Extrait la valeur d'une adresse SMPP (Smpp\Pdu\Address) même si la propriété est privée.
+     */
+    protected function extractAddressValue(?object $address): ?string
+    {
+        if (! $address instanceof Address) {
+            return null;
+        }
+
+        // Si un getter existe, on le privilégie
+        if (method_exists($address, 'getValue')) {
+            return $address->getValue();
+        }
+
+        // Fallback bourrin : reflection sur la propriété privée "value"
+        try {
+            $ref = new \ReflectionClass($address);
+            if ($ref->hasProperty('value')) {
+                $prop = $ref->getProperty('value');
+                $prop->setAccessible(true);
+
+                $value = $prop->getValue($address);
+
+                return is_string($value) ? $value : null;
+            }
+        } catch (\Throwable $e) {
+            // on ignore, on renverra null
+        }
+
+        return null;
     }
 }
