@@ -6,19 +6,16 @@ use App\Models\SimCard;
 use App\Models\SmsMessage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-
+use Smpp\Client;
 use Smpp\ClientBuilder;
 use Smpp\Pdu\Address;
-use Smpp\Smpp;
 
 class SmppWorkerCommand extends Command
 {
     protected $signature = 'smpp:worker';
-
     protected $description = 'SMPP worker for sending SMS via GoIP4';
 
-    protected SmppClient $smpp;
-    protected int $lastKeepAlive = 0;
+    protected Client $smppClient;
 
     public function handle(): int
     {
@@ -28,10 +25,6 @@ class SmppWorkerCommand extends Command
 
         while (true) {
             $this->processOutgoingQueue();
-
-            // Pour l’instant on ne gère pas les SMS entrants via SMPP
-            // $this->readIncomingMessages();
-
             usleep(100_000); // 100 ms
         }
 
@@ -47,43 +40,20 @@ class SmppWorkerCommand extends Command
 
         $this->info("Connecting to SMPP {$host}:{$port}…");
 
-        // === Copie de l’exemple php8-smpp, adapté ===
-        $this->transport = new Socket([$host], $port);
-        $this->transport->debug = false;
-        $this->transport->setRecvTimeout(10000);
+        // On suit l’exemple 01-default-client.md de php8-smpp
+        // DSN au format tcp://ip:port
+        $dsn = sprintf('%s:%d', $host, $port);
 
-        $this->smpp = new SmppClient($this->transport);
-        $this->smpp->debug = false;
+        $this->smppClient = ClientBuilder::createForSockets([$dsn])
+            ->setCredentials($systemId, $password)
+            ->buildClient();
 
-        $this->transport->open();
+        // Mode transceiver : envoi + réception (pour l’instant on ne fait que l’envoi)
+        $this->smppClient->bindTransceiver();
 
-        // ESME côté client → bindTransmitter (envoi uniquement)
-        $this->smpp->bindTransmitter($systemId, $password);
-
-        $this->info('SMPP connected & bound as transmitter');
-
-        $this->lastKeepAlive = time();
+        $this->info('SMPP connected & bound as transceiver');
     }
 
-    protected function reconnect(): void
-    {
-        $this->error('Reconnecting SMPP…');
-
-        try {
-            $this->smpp?->close();
-        } catch (\Throwable $e) {
-            // ignore
-        }
-
-        sleep(2);
-
-        $this->connect();
-    }
-
-    /**
-     * Commentaire FR :
-     * Récupère des messages en attente dans goip_outgoing_queue et les envoie.
-     */
     protected function processOutgoingQueue(): void
     {
         $rows = DB::table('goip_outgoing_queue')
@@ -117,32 +87,31 @@ class SmppWorkerCommand extends Command
                     'error_message' => 'Missing message or SIM',
                     'updated_at'    => now(),
                 ]);
-
             return;
         }
 
         try {
-            // === Adresses SMPP, comme dans l’exemple ===
+            // TON / NPI en dur (valeurs SMPP standard)
+            //  - from : alphanumérique
+            //  - to   : international E.164
             $from = new Address(
                 $sim->sender_id ?: ($sim->phone_number ?? 'GOIP'),
-                Smpp::TON_ALPHANUMERIC,
-                Smpp::NPI_UNKNOWN
+                5, // TON_ALPHANUMERIC
+                0  // NPI_UNKNOWN
             );
 
             $to = new Address(
                 $row->phone_number,
-                Smpp::TON_INTERNATIONAL,
-                Smpp::NPI_E164
+                1, // TON_INTERNATIONAL
+                1  // NPI_E164
             );
 
-            $text = $row->body;
+            $this->info("submit_sm to {$row->phone_number} : {$row->body}");
 
-            $this->info("SMPP submit_sm to {$row->phone_number} : {$text}");
-
-            $this->smpp->sendSMS(
+            $this->smppClient->sendSMS(
                 $from,
                 $to,
-                $text
+                $row->body
             );
 
             DB::table('goip_outgoing_queue')
@@ -157,7 +126,7 @@ class SmppWorkerCommand extends Command
                 'sent_at' => now(),
             ]);
         } catch (\Throwable $e) {
-            $this->error('Error sending SMS via SMPP (php8-smpp): ' . $e->getMessage());
+            $this->error("SMPP error: " . $e->getMessage());
 
             DB::table('goip_outgoing_queue')
                 ->where('id', $row->id)
@@ -173,13 +142,7 @@ class SmppWorkerCommand extends Command
                 'error_message' => $e->getMessage(),
             ]);
 
-            $this->reconnect();
+            // On pourrait tenter un reconnect ici si besoin
         }
-    }
-
-    protected function readIncomingMessages(): void
-    {
-        // TODO: lecture des deliver_sm quand on attaquera la partie inbound
-        return;
     }
 }
