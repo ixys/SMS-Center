@@ -1,0 +1,63 @@
+name: Build & Push Docker Image (Scaleway)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ${{ secrets.SCW_CR_REGISTRY }}        # ex: rg.fr-par.scw.cloud
+  NAMESPACE: ${{ secrets.SCW_CR_NAMESPACE }}      # ex: my-namespace
+  IMAGE_REPO: sms-center                          # nom de l'image
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Scaleway Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.SCW_CR_USERNAME }}
+          password: ${{ secrets.SCW_CR_PASSWORD }}
+
+      - name: Compute tags
+        id: vars
+        run: |
+          SHA_SHORT=${GITHUB_SHA::7}
+
+          if [ "${GITHUB_REF_NAME}" = "develop" ]; then
+            TAG_ENV="dev"
+          elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+            TAG_ENV="prod"
+          else
+            TAG_ENV="other"
+          fi
+
+          echo "TAG_ENV=$TAG_ENV" >> $GITHUB_OUTPUT
+          echo "SHA_SHORT=$SHA_SHORT" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        if: steps.vars.outputs.TAG_ENV != 'other'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_REPO }}:${{ steps.vars.outputs.TAG_ENV }}-${{ steps.vars.outputs.SHA_SHORT }}
+            ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_REPO }}:${{ steps.vars.outputs.TAG_ENV }}-latest

@@ -1,0 +1,110 @@
+# Dockerfile.prod – build multi-stage pour prod Laravel + SMPP
+
+############################
+# 1) Base PHP avec extensions
+############################
+FROM php:8.3-fpm-alpine AS base-php
+
+# Dépendances système minimalistes mais suffisantes pour Laravel
+RUN apk add --no-cache \
+    git \
+    unzip \
+    icu-dev \
+    libpng-dev \
+    libxml2-dev \
+    libzip-dev \
+    oniguruma-dev \
+    curl-dev \
+    openssl-dev \
+    bash
+
+# Extensions PHP nécessaires (ajuste si besoin)
+RUN docker-php-ext-configure intl \
+ && docker-php-ext-install \
+    pdo_mysql \
+    mbstring \
+    zip \
+    intl \
+    sockets \
+    pcntl
+
+WORKDIR /var/www/html
+
+
+############################
+# 2) Stage Composer (build vendor)
+############################
+FROM base-php AS composer-build
+
+# Copier Composer depuis l'image officielle
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# Copier uniquement les fichiers Composer pour profiter du cache
+COPY webapp/composer.json webapp/composer.lock ./
+
+# Installer les dépendances sans dev, optimisées
+RUN composer install \
+    --no-dev \
+    --prefer-dist \
+    --no-interaction \
+    --no-progress \
+    --optimize-autoloader
+
+
+############################
+# 3) (Optionnel) Build des assets front
+############################
+# Si tu utilises Vite / npm :
+# FROM node:20-alpine AS assets-build
+# WORKDIR /app
+# COPY webapp/package.json webapp/package-lock.json ./
+# RUN npm ci
+# COPY webapp/ .
+# RUN npm run build
+
+
+############################
+# 4) Image finale de prod
+############################
+FROM base-php AS app
+
+WORKDIR /var/www/html
+
+# Copier le code applicatif
+COPY webapp/ ./
+
+# Copier /vendor depuis le stage Composer
+COPY --from=composer-build /var/www/html/vendor ./vendor
+
+# Si tu as des assets compilés (Vite), décommente :
+# COPY --from=assets-build /app/public/build ./public/build
+
+# Permissions pour Laravel
+RUN chown -R www-data:www-data storage bootstrap/cache
+
+# Variables par défaut (surchargées par l'environnement)
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    APP_URL=https://example.com \
+    LOG_CHANNEL=stderr \
+    LOG_LEVEL=info \
+    PHP_FPM_PM_MAX_CHILDREN=10
+
+# Optimisations Laravel (config, routes, vues)
+# ATTENTION : nécessite que les variables d'env soient dispos au build,
+# sinon commente ce bloc et lance ces commandes au démarrage.
+RUN php artisan config:clear \
+ && php artisan cache:clear \
+ && php artisan route:clear \
+ && php artisan view:clear \
+ && php artisan config:cache \
+ && php artisan route:cache \
+ && php artisan view:cache || true
+
+# Exposer FPM
+EXPOSE 9000
+
+# Process principal : PHP-FPM
+CMD ["php-fpm"]

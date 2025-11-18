@@ -1,0 +1,451 @@
+# =====================================================================
+# NAMESPACE
+# =====================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smscenter-dev    # ← remplace ENV par dev ou prod (ex: smscenter-dev)
+---
+# =====================================================================
+# CONFIGMAP APP (config non sensible)
+# =====================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smscenter-app-config
+  namespace: smscenter-dev
+data:
+  APP_ENV: "production"
+  APP_DEBUG: "false"
+  APP_URL: "https://smscenter-ENV.example.com"
+
+  # DB (non sensibles)
+  DB_CONNECTION: "mysql"
+  DB_HOST: "smscenter-db"
+  DB_PORT: "3306"
+  DB_DATABASE: "sms_center"
+  DB_USERNAME: "sms_center"
+
+  # Redis
+  REDIS_HOST: "smscenter-redis"
+  REDIS_PORT: "6379"
+  QUEUE_CONNECTION: "redis"
+
+  # SMPP / GoIP (non sensibles)
+  SMPP_HOST: "192.168.1.142"
+  SMPP_PORT: "7777"
+  SMPP_SYSTEM_ID: "goip"
+  SMPP_SYSTEM_TYPE: ""
+  SMPP_SOURCE_TON: "0"
+  SMPP_SOURCE_NPI: "0"
+  SMPP_DEST_TON: "1"
+  SMPP_DEST_NPI: "1"
+  SMPP_KEEPALIVE_INTERVAL: "30"
+---
+# =====================================================================
+# SECRET APP (mots de passe et clés)
+# =====================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: smscenter-app-secrets
+  namespace: smscenter-dev
+type: Opaque
+stringData:
+  # Clé Laravel
+  APP_KEY: "CHANGE_ME_APP_KEY"
+
+  # DB password
+  DB_PASSWORD: "CHANGE_ME_DB_PASSWORD"
+
+  # SMPP password
+  SMPP_PASSWORD: "CHANGE_ME_SMPP_PASSWORD"
+---
+# =====================================================================
+# SECRET DB (mots de passe DB)
+# =====================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: smscenter-db-secrets
+  namespace: smscenter-dev
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: "CHANGE_ME_ROOT"
+  MYSQL_DATABASE: "sms_center"
+  MYSQL_USER: "sms_center"
+  MYSQL_PASSWORD: "CHANGE_ME_DB_PASSWORD"
+---
+# =====================================================================
+# CONFIGMAP NGINX
+# =====================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smscenter-nginx-conf
+  namespace: smscenter-dev
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        root /var/www/html/public;
+        index index.php index.html;
+
+        access_log /var/log/nginx/access.log;
+        error_log  /var/log/nginx/error.log;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location ~ \.php$ {
+            # On passe par le service smscenter-app (port 9000)
+            fastcgi_pass   smscenter-app:9000;
+            fastcgi_index  index.php;
+            include        fastcgi_params;
+            fastcgi_param  SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            fastcgi_param  DOCUMENT_ROOT $realpath_root;
+        }
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+            try_files $uri $uri/ /index.php?$query_string;
+            access_log off;
+            expires max;
+        }
+    }
+---
+# =====================================================================
+# DEPLOYMENT APP (PHP-FPM Laravel)
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smscenter-app
+  namespace: smscenter-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: smscenter-app
+  template:
+    metadata:
+      labels:
+        app: smscenter-app
+    spec:
+      containers:
+        - name: smscenter-app
+          image: rg.fr-par.scw.cloud/sms-center/sms-center:dev-latest
+          # ↑ remplace MY_NAMESPACE, ENV (dev/prod) et le tag selon ton workflow
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: "https://smscenter-dev.example.com"
+
+            # DB
+            - name: DB_CONNECTION
+              value: "mysql"
+            - name: DB_HOST
+              value: "smscenter-db"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: "sms_center"
+            - name: DB_USERNAME
+              value: "sms_center"
+            - name: DB_PASSWORD
+              value: "sms_center"
+
+            # Redis
+            - name: REDIS_HOST
+              value: "smscenter-redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: QUEUE_CONNECTION
+              value: "redis"
+
+            # SMPP / GoIP
+            - name: SMPP_HOST
+              value: "192.168.1.142"       # à adapter
+            - name: SMPP_PORT
+              value: "7777"
+            - name: SMPP_SYSTEM_ID
+              value: "goip"
+            - name: SMPP_PASSWORD
+              value: "4z6Ag8q"
+            - name: SMPP_SYSTEM_TYPE
+              value: ""
+            - name: SMPP_SOURCE_TON
+              value: "0"
+            - name: SMPP_SOURCE_NPI
+              value: "0"
+            - name: SMPP_DEST_TON
+              value: "1"
+            - name: SMPP_DEST_NPI
+              value: "1"
+            - name: SMPP_KEEPALIVE_INTERVAL
+              value: "30"
+
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+# =====================================================================
+# SERVICE APP (ClusterIP port 9000)
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: smscenter-app
+  namespace: smscenter-dev
+spec:
+  selector:
+    app: smscenter-app
+  ports:
+    - name: fpm
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+---
+# =====================================================================
+# DEPLOYMENT WEB (NGINX)
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smscenter-web
+  namespace: smscenter-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smscenter-web
+  template:
+    metadata:
+      labels:
+        app: smscenter-web
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: smscenter-nginx-conf
+---
+# =====================================================================
+# SERVICE WEB (ClusterIP port 80)
+# =====================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: smscenter-web
+  namespace: smscenter-dev
+spec:
+  selector:
+    app: smscenter-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+---
+# =====================================================================
+# DEPLOYMENT QUEUE WORKER
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smscenter-queue
+  namespace: smscenter-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smscenter-queue
+  template:
+    metadata:
+      labels:
+        app: smscenter-queue
+    spec:
+      containers:
+        - name: queue-worker
+          image: rg.fr-par.scw.cloud/sms-center/sms-center:dev-latest
+          imagePullPolicy: IfNotPresent
+          command: ["php", "artisan", "queue:work", "--sleep=1", "--tries=3", "--verbose"]
+          workingDir: /var/www/html
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: APP_DEBUG
+              value: "false"
+
+            - name: DB_CONNECTION
+              value: "mysql"
+            - name: DB_HOST
+              value: "smscenter-db"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: "sms_center"
+            - name: DB_USERNAME
+              value: "sms_center"
+            - name: DB_PASSWORD
+              value: "sms_center"
+
+            - name: REDIS_HOST
+              value: "smscenter-redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: QUEUE_CONNECTION
+              value: "redis"
+
+            - name: SMPP_HOST
+              value: "192.168.1.142"
+            - name: SMPP_PORT
+              value: "7777"
+            - name: SMPP_SYSTEM_ID
+              value: "goip"
+            - name: SMPP_PASSWORD
+              value: "4z6Ag8q"
+---
+# =====================================================================
+# DEPLOYMENT SMPP WORKER
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smscenter-smpp-worker
+  namespace: smscenter-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smscenter-smpp-worker
+  template:
+    metadata:
+      labels:
+        app: smscenter-smpp-worker
+    spec:
+      containers:
+        - name: smpp-worker
+          image: rg.fr-par.scw.cloud/sms-center/sms-center:dev-latest
+          imagePullPolicy: IfNotPresent
+          command: ["php", "artisan", "smpp:worker"]
+          workingDir: /var/www/html
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: APP_DEBUG
+              value: "false"
+
+            - name: DB_CONNECTION
+              value: "mysql"
+            - name: DB_HOST
+              value: "smscenter-db"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: "sms_center"
+            - name: DB_USERNAME
+              value: "sms_center"
+            - name: DB_PASSWORD
+              value: "sms_center"
+
+            - name: REDIS_HOST
+              value: "smscenter-redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: QUEUE_CONNECTION
+              value: "redis"
+
+            - name: SMPP_HOST
+              value: "192.168.1.142"
+            - name: SMPP_PORT
+              value: "7777"
+            - name: SMPP_SYSTEM_ID
+              value: "goip"
+            - name: SMPP_PASSWORD
+              value: "4z6Ag8q"
+---
+# =====================================================================
+# INGRESS (à adapter à ton IngressClass Scw / Traefik / Nginx)
+# =====================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: smscenter-ingress
+  namespace: smscenter-dev
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  rules:
+    - host: dev.smscenter.ixys.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: smscenter-web
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - dev.smscenter.ixys.dev
+      secretName: dev.smscenter.ixys.dev-cert
+---
+# =====================================================================
+# INGRESS Redirect http to https
+# =====================================================================
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-redirect
+  namespace: smscenter-dev
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: dev.smscenter.ixys.dev-redirect@kubernetescrd
+spec:
+  rules:
+    - host: dev.smscenter.ixys.dev
+      http:
+        paths:
+          - backend:
+              service:
+                name: smscenter-web
+                port:
+                  number: 80
+            path: /
+            pathType: ImplementationSpecific

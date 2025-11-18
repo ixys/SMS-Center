@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  app:
+    image: smscenter-app:prod
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY}
+      APP_URL: https://sms-center.example.com
+
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: sms_center
+      DB_USERNAME: sms_center
+      DB_PASSWORD: sms_center
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QUEUE_CONNECTION: redis
+
+      SMPP_HOST: ${SMPP_HOST}
+      SMPP_PORT: ${SMPP_PORT}
+      SMPP_SYSTEM_ID: ${SMPP_SYSTEM_ID}
+      SMPP_PASSWORD: ${SMPP_PASSWORD}
+
+  queue:
+    image: smscenter-app:prod
+    restart: unless-stopped
+    command: php artisan queue:work --sleep=1 --tries=3 --verbose
+    environment:
+    # mêmes variables que app (DB, Redis, SMPP, APP_KEY, etc.)
+
+  smpp-worker:
+    image: smscenter-app:prod
+    restart: unless-stopped
+    command: php artisan smpp:worker
+    environment:
+    # mêmes variables que app (DB, Redis, SMPP, APP_KEY, etc.)
