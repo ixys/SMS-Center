@@ -150,6 +150,9 @@
       <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/vlucas/phpdotenv" />
       <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/voku/portable-ascii" />
       <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/_laravel_idea" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/storage/app" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/storage/framework" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/spatie/laravel-permission" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

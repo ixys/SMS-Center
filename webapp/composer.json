@@ -12,7 +12,8 @@
         "laravel/tinker": "^2.10.1",
         "php8-smpp/php8-smpp": "^0.1.1",
         "predis/predis": "^3.2",
-        "spatie/laravel-activitylog": "^4.10"
+        "spatie/laravel-activitylog": "^4.10",
+        "spatie/laravel-permission": "^6.23"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

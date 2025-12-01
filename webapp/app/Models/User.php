@@ -10,10 +10,12 @@ use Filament\Models\Contracts\HasDefaultTenant;
 use Filament\Models\Contracts\HasTenants;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser
 {
     use Notifiable;
+    use HasRoles;
 
     /**
      * Permet de savoir si l’utilisateur peut accéder à un panel Filament.
@@ -21,7 +23,8 @@ class User extends Authenticatable implements FilamentUser
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return true;
+        // N’autoriser que les admins
+        return $this->hasRole('admin');
     }
 
 	protected $hidden = [

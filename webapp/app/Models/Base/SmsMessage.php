@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Class SmsMessage
- *
+ * 
  * @property int $id
  * @property int|null $sms_conversation_id
  * @property int|null $contact_id
@@ -42,7 +42,7 @@ use Illuminate\Database\Eloquent\Collection;
  * @property array|null $metadata
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- *
+ * 
  * @property Contact|null $contact
  * @property SimCard|null $sim_card
  * @property SmsConversation|null $sms_conversation
