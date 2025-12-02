@@ -13,7 +13,10 @@ class PlatformAccount extends BasePlatformAccount
 		'external_id',
 		'credentials',
 		'settings',
-		'is_active'
+		'is_active',
+        'smpp_phone_number',
+        'smpp_sender_id',
+        'smpp_sim_slot'
 	];
 
     protected $casts = [
@@ -37,8 +40,23 @@ class PlatformAccount extends BasePlatformAccount
         return $this->hasMany(Message::class);
     }
 
-    public function driver(): object
+    /**
+     * Instancie le driver associé à ce compte
+     * (en passant par la Platform et son driver_class).
+     */
+    public function driver()
     {
-        return $this->platform->driver();
+        // On force le chargement de la relation si besoin
+        $platform = $this->platform ?? $this->platform()->first();
+
+        if (! $platform) {
+            throw new \RuntimeException("PlatformAccount #{$this->id} n’a pas de platform associée (platform_id manquant).");
+        }
+
+        if (! $platform->driver_class) {
+            throw new \RuntimeException("Platform #{$platform->id} ({$platform->code}) n’a pas de driver_class configuré.");
+        }
+
+        return app($platform->driver_class);
     }
 }

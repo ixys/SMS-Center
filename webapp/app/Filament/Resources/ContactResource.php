@@ -20,7 +20,7 @@ class ContactResource extends Resource
     protected static ?string $navigationIcon  = 'heroicon-o-user-group';
     protected static ?string $navigationLabel = 'Contacts';
     protected static ?string $pluralLabel     = 'Contacts';
-    protected static ?string $navigationGroup = 'SMS Center';
+    protected static ?string $navigationGroup = 'Contacts';
 
     public static function form(Form $form): Form
     {

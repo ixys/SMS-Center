@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ConversationResource\RelationManagers;
 
+use App\Models\Message;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;

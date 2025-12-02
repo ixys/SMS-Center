@@ -25,13 +25,14 @@ class Platform extends BasePlatform
     }
 
     /**
-     * Instancie le driver associé à cette plateforme.
-     * // Permet d’appeler dynamiquement la logique métier (API externes, webhooks, etc.)
+     * Instancie le driver associé à cette plateforme (SmsDriver, OnlyFansDriver, etc.)
      */
-    public function driver(): object
+    public function makeDriver()
     {
-        $class = $this->driver_class;
+        if (! $this->driver_class) {
+            throw new \RuntimeException("Platform #{$this->id} ({$this->code}) n’a pas de driver_class configuré.");
+        }
 
-        return new $class($this);
+        return app($this->driver_class);
     }
 }

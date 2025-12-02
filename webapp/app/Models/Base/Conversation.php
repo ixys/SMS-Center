@@ -7,6 +7,7 @@
 namespace App\Models\Base;
 
 use App\Abstracts\Model;
+use App\Models\Contact;
 use App\Models\Message;
 use App\Models\PlatformAccount;
 use Carbon\Carbon;
@@ -15,8 +16,9 @@ use Illuminate\Database\Eloquent\Collection;
 /**
  * Class Conversation
  * 
- * @property int $id
+ * @property string $uuid
  * @property int $platform_account_id
+ * @property string|null $contact_uuid
  * @property string|null $external_conversation_id
  * @property string|null $remote_user_id
  * @property string|null $remote_username
@@ -28,6 +30,7 @@ use Illuminate\Database\Eloquent\Collection;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * 
+ * @property Contact|null $contact
  * @property PlatformAccount $platform_account
  * @property Collection|Message[] $messages
  *
@@ -36,6 +39,8 @@ use Illuminate\Database\Eloquent\Collection;
 class Conversation extends Model
 {
 	protected $table = 'conversations';
+	protected $primaryKey = 'uuid';
+	public $incrementing = false;
 
 	protected $casts = [
 		'platform_account_id' => 'int',
@@ -44,6 +49,11 @@ class Conversation extends Model
 		'last_outbound_at' => 'datetime'
 	];
 
+	public function contact()
+	{
+		return $this->belongsTo(Contact::class, 'contact_uuid');
+	}
+
 	public function platform_account()
 	{
 		return $this->belongsTo(PlatformAccount::class);
@@ -51,6 +61,6 @@ class Conversation extends Model
 
 	public function messages()
 	{
-		return $this->hasMany(Message::class);
+		return $this->hasMany(Message::class, 'conversation_uuid');
 	}
 }

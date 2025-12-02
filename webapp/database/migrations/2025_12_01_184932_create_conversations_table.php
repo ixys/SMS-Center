@@ -8,9 +8,14 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::create('conversations', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('uuid')->primary()->unique();
 
             $table->foreignId('platform_account_id')->constrained()->cascadeOnDelete();
+            // Contact associé à la conversation (facultatif pour garder compatibilité)
+            $table->foreignUuid('contact_uuid')
+                  ->nullable()
+                  ->constrained('contacts', 'uuid')
+                  ->nullOnDelete();
 
             // IDs distants
             $table->string('external_conversation_id')->nullable(); // ID conversation sur la plateforme

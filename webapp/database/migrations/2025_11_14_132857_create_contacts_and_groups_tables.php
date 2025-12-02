@@ -14,18 +14,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('contacts', function (Blueprint $table) {
-            // Identifiant interne
-            $table->bigIncrements('id');
-
             // UUID fonctionnel, pratique pour exposer en API
-            $table->uuid('uuid')->unique();
-
-            // Nom complet ou alias
-            $table->string('name')->nullable();
+            $table->uuid('uuid')->primary()->unique();
 
             // Détail du nom (au cas où)
             $table->string('first_name')->nullable();
             $table->string('last_name')->nullable();
+
+            $table->string('name')->virtualAs('concat(first_name, \' \', last_name)');
 
             // Numéro principal (format tel brut)
             $table->string('phone_number', 32);
@@ -54,8 +50,7 @@ return new class extends Migration
         });
 
         Schema::create('contact_groups', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->uuid('uuid')->unique();
+            $table->uuid('uuid')->primary()->unique();
 
             // Nom du groupe (ex: "Clients VIP", "OTP", "Test interne")
             $table->string('name');
@@ -75,18 +70,18 @@ return new class extends Migration
         Schema::create('contact_group_contact', function (Blueprint $table) {
             $table->bigIncrements('id');
 
-            $table->foreignId('contact_id')
-                ->constrained('contacts')
+            $table->foreignUuid('contact_uuid')
+                ->constrained('contacts', 'uuid')
                 ->onDelete('cascade');
 
-            $table->foreignId('contact_group_id')
-                ->constrained('contact_groups')
+            $table->foreignUuid('contact_group_uuid')
+                ->constrained('contact_groups', 'uuid')
                 ->onDelete('cascade');
 
             $table->timestamps();
 
             // Un contact ne doit pas être dupliqué dans le même groupe
-            $table->unique(['contact_id', 'contact_group_id'], 'contact_group_contact_unique');
+            $table->unique(['contact_uuid', 'contact_group_uuid'], 'contact_group_contact_unique');
         });
     }
 

@@ -2,24 +2,29 @@
 
 namespace App\Models;
 
+use App\Enums\MessageStatus;
 use App\Models\Base\Message as BaseMessage;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Message extends BaseMessage
 {
-	protected $fillable = [
-		'conversation_id',
-		'platform_account_id',
-		'external_message_id',
-		'direction',
-		'from',
-		'to',
-		'content',
-		'attachments',
-		'status',
-		'sent_at'
-	];
+    use HasUuids;
+
+    protected $fillable = [
+        'conversation_uuid',
+        'campaign_uuid',
+        'direction',
+        'from',
+        'to',
+        'status',
+        'content',
+        'sent_at',
+        'received_at',
+        'failed_at',
+    ];
 
     protected $casts = [
+        'status' => MessageStatus::class,
         'attachments' => 'array',
         'sent_at' => 'datetime',
     ];
@@ -32,5 +37,10 @@ class Message extends BaseMessage
     public function platformAccount()
     {
         return $this->belongsTo(PlatformAccount::class);
+    }
+
+    public function campaign()
+    {
+        return $this->belongsTo(Campaign::class);
     }
 }

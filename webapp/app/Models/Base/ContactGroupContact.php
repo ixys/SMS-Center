@@ -15,8 +15,8 @@ use Carbon\Carbon;
  * Class ContactGroupContact
  * 
  * @property int $id
- * @property int $contact_id
- * @property int $contact_group_id
+ * @property string $contact_uuid
+ * @property string $contact_group_uuid
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * 
@@ -29,18 +29,13 @@ class ContactGroupContact extends Model
 {
 	protected $table = 'contact_group_contact';
 
-	protected $casts = [
-		'contact_id' => 'int',
-		'contact_group_id' => 'int'
-	];
-
 	public function contact_group()
 	{
-		return $this->belongsTo(ContactGroup::class);
+		return $this->belongsTo(ContactGroup::class, 'contact_group_uuid');
 	}
 
 	public function contact()
 	{
-		return $this->belongsTo(Contact::class);
+		return $this->belongsTo(Contact::class, 'contact_uuid');
 	}
 }

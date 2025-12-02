@@ -152,7 +152,20 @@
       <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/_laravel_idea" />
       <excludeFolder url="file://$MODULE_DIR$/webapp/storage/app" />
       <excludeFolder url="file://$MODULE_DIR$/webapp/storage/framework" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/brianium/paratest" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/fidry/cpu-core-counter" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/jean85/pretty-package-versions" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/pestphp/pest" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/pestphp/pest-plugin" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/pestphp/pest-plugin-arch" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/pestphp/pest-plugin-mutate" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/phpdocumentor/reflection-common" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/phpdocumentor/reflection-docblock" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/phpdocumentor/type-resolver" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/phpstan/phpdoc-parser" />
       <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/spatie/laravel-permission" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/ta-tikoma/phpunit-architecture-test" />
+      <excludeFolder url="file://$MODULE_DIR$/webapp/vendor/webmozart/assert" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

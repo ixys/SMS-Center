@@ -2,21 +2,38 @@
 
 namespace App\Services\Sms;
 
+/**
+ * Interface générique pour un gateway SMS.
+ * Implémentation SMPP : SmppSmsGateway.
+ * Plus tard : HTTP API, etc.
+ */
 interface SmsGateway
 {
     /**
+     * Établit la connexion au provider (SMPP, HTTP, etc.).
+     */
+    public function connect(): void;
+
+    /**
      * Envoie un SMS.
      *
-     * @param  string  $from   Numéro émetteur (E.164 si possible)
-     * @param  string  $to     Numéro destinataire (E.164 si possible)
-     * @param  string  $content Contenu du message (texte brut)
-     * @param  array   $options Options spécifiques (ID campagne, tags, etc.)
-     *
-     * @return array {
-     *   'external_message_id' => string|null,
-     *   'status' => string, // ex: 'queued', 'sent', 'delivered'
-     *   'sent_at' => \DateTimeInterface|null,
-     * }
+     * @param string $from    Expéditeur (alphanum ou numéro)
+     * @param string $to      Destinataire (E.164 de préférence)
+     * @param string $body    Contenu du SMS
+     * @param array  $options Options spécifiques (ex: sim_slot pour GoIP)
      */
-    public function send(string $from, string $to, string $content, array $options = []): array;
+    public function sendSms(string $from, string $to, string $body, array $options = []): void;
+
+    /**
+     * Lit un SMS entrant, si disponible.
+     *
+     * Retourne un objet générique :
+     *  - from : string|null
+     *  - to   : string|null
+     *  - body : string|null
+     *  - raw  : mixed (objet natif de la lib SMPP)
+     *
+     * ou null s’il n’y a rien à lire.
+     */
+    public function readSms(): ?object;
 }

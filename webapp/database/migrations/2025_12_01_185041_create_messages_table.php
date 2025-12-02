@@ -8,12 +8,13 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::create('messages', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('uuid')->primary()->unique();
 
-            $table->foreignId('conversation_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('platform_account_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('conversation_uuid')
+                  ->constrained('conversations', 'uuid')
+                  ->cascadeOnDelete();
 
-            $table->string('external_message_id')->nullable(); // ID message sur la plateforme
+            $table->string('external_message_id')->nullable()->index(); // ID message sur la plateforme
 
             $table->enum('direction', ['inbound', 'outbound']); // Sens du message
             $table->string('from')->nullable(); // handle / numéro émetteur
@@ -26,9 +27,11 @@ return new class extends Migration {
             // delivered / pending / failed / read / etc.
 
             $table->timestamp('sent_at')->nullable(); // Timestamp de la plateforme
+            $table->timestamp('received_at')->nullable();
+            $table->timestamp('failed_at')->nullable();
             $table->timestamps();
 
-            $table->index(['platform_account_id', 'external_message_id']);
+            $table->index(['conversation_uuid', 'external_message_id']);
         });
     }
 

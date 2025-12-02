@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Enums\ConversationStatus;
 use App\Models\Base\Conversation as BaseConversation;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Conversation extends BaseConversation
 {
+    use HasUuids;
+
 	protected $fillable = [
 		'platform_account_id',
+        'contact_uuid',
 		'external_conversation_id',
 		'remote_user_id',
 		'remote_username',
@@ -19,6 +24,7 @@ class Conversation extends BaseConversation
 	];
 
     protected $casts = [
+        'status' => ConversationStatus::class,
         'last_message_at' => 'datetime',
         'last_inbound_at' => 'datetime',
         'last_outbound_at' => 'datetime',

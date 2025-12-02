@@ -7,8 +7,8 @@
 namespace App\Models\Base;
 
 use App\Abstracts\Model;
+use App\Models\Campaign;
 use App\Models\Conversation;
-use App\Models\Message;
 use App\Models\Platform;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -21,6 +21,9 @@ use Illuminate\Database\Eloquent\Collection;
  * @property string $name
  * @property string|null $external_username
  * @property string|null $external_id
+ * @property string|null $smpp_phone_number
+ * @property int|null $smpp_sim_slot
+ * @property string|null $smpp_sender_id
  * @property array|null $credentials
  * @property array|null $settings
  * @property bool $is_active
@@ -28,8 +31,8 @@ use Illuminate\Database\Eloquent\Collection;
  * @property Carbon|null $updated_at
  * 
  * @property Platform $platform
+ * @property Collection|Campaign[] $campaigns
  * @property Collection|Conversation[] $conversations
- * @property Collection|Message[] $messages
  *
  * @package App\Models\Base
  */
@@ -39,6 +42,7 @@ class PlatformAccount extends Model
 
 	protected $casts = [
 		'platform_id' => 'int',
+		'smpp_sim_slot' => 'int',
 		'credentials' => 'json',
 		'settings' => 'json',
 		'is_active' => 'bool'
@@ -49,13 +53,13 @@ class PlatformAccount extends Model
 		return $this->belongsTo(Platform::class);
 	}
 
+	public function campaigns()
+	{
+		return $this->hasMany(Campaign::class);
+	}
+
 	public function conversations()
 	{
 		return $this->hasMany(Conversation::class);
-	}
-
-	public function messages()
-	{
-		return $this->hasMany(Message::class);
 	}
 }

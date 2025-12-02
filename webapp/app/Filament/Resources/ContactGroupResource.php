@@ -20,7 +20,7 @@ class ContactGroupResource extends Resource
     protected static ?string $navigationIcon  = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationLabel = 'Groupes de contacts';
     protected static ?string $pluralLabel     = 'Groupes de contacts';
-    protected static ?string $navigationGroup = 'SMS Center';
+    protected static ?string $navigationGroup = 'Contacts';
 
     public static function form(Form $form): Form
     {
